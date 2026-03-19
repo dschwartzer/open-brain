@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Brain — User Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf9f6;
+    --bg2: #f0eeea;
+    --bg3: #e6e3dd;
+    --text: #1a1a18;
+    --text2: #5c5a52;
+    --accent: #2d7a4f;
+    --accent-bg: #e8f4ed;
+    --blue: #2a6cb6;
+    --coral: #c4603a;
+    --amber: #9a7520;
+    --purple: #6b5eaa;
+    --border: #d8d5ce;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+  }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    background: var(--accent-bg);
+    padding: 4px 10px;
+    border-radius: 3px;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: 38px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .subtitle {
+    font-size: 19px;
+    color: var(--text2);
+    margin-bottom: 48px;
+    font-style: italic;
+  }
+  h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 600;
+    margin-top: 56px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 32px;
+    margin-bottom: 12px;
+  }
+  p { margin-bottom: 16px; }
+  code {
+    font-family: var(--mono);
+    font-size: 14px;
+    background: var(--bg2);
+    padding: 2px 7px;
+    border-radius: 3px;
+    color: var(--coral);
+  }
+  strong { font-weight: 600; }
+  em { font-style: italic; color: var(--text2); }
+
+  .how-card {
+    background: var(--bg2);
+    border-radius: 8px;
+    padding: 24px;
+    margin: 20px 0;
+  }
+  .how-card-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text2);
+    margin-bottom: 10px;
+  }
+  .how-card .msg {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 8px 0;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .how-card .msg.you { border-left: 3px solid var(--blue); }
+  .how-card .msg.ai { border-left: 3px solid var(--accent); }
+  .how-card .msg-who {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text2);
+    margin-bottom: 4px;
+  }
+
+  .tip {
+    background: var(--accent-bg);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 15px;
+  }
+  .tip p { margin-bottom: 0; }
+  .tip strong { color: var(--accent); }
+
+  .warning {
+    background: #fef3e8;
+    border-left: 3px solid var(--amber);
+    border-radius: 0 6px 6px 0;
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 15px;
+  }
+  .warning p { margin-bottom: 0; }
+  .warning strong { color: var(--amber); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 15px;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text2);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+
+  .template {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 12px 0;
+    font-size: 15px;
+  }
+  .template-type {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--purple);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .template-text {
+    color: var(--text2);
+    font-style: italic;
+  }
+
+  .connect-step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    margin: 16px 0;
+  }
+  .connect-num {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 2px;
+  }
+  .connect-text { flex: 1; }
+  .connect-text p { margin-bottom: 4px; }
+
+  .bigquote {
+    font-size: 22px;
+    font-style: italic;
+    color: var(--text2);
+    border-left: 3px solid var(--accent);
+    padding: 8px 24px;
+    margin: 32px 0;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="badge">User Guide</div>
+<h1>Your Open Brain</h1>
+<p class="subtitle">One brain. Every AI. Here's how to use it.</p>
+
+<p>
+  You've built a personal knowledge system that lives in a database you own. Every AI you use — Claude, ChatGPT, Cursor, whatever comes next — can read from and write to this brain through a single connection. Here's how to make it part of your daily workflow.
+</p>
+
+<h2>Two Ways to Capture Thoughts</h2>
+
+<h3>1. Type in Slack</h3>
+<p>
+  Open your <strong>#capture</strong> channel in Slack and type anything — a decision, a note about a person, an insight, a meeting takeaway. The system captures it in 5–10 seconds and replies in-thread confirming what it stored.
+</p>
+
+<div class="how-card">
+  <div class="how-card-label">Example — Slack capture</div>
+  <div class="msg you">
+    <div class="msg-who">You</div>
+    Decided to push the product launch to April 15. QA found three critical bugs in the payment flow and we can't ship without fixing them. Marcus is leading the fix.
+  </div>
+  <div class="msg ai">
+    <div class="msg-who">Open Brain</div>
+    ✓ Captured as <strong>decision</strong> — product<br>
+    Topics: product launch, QA, payment flow<br>
+    People: Marcus<br>
+    Action items: Fix three critical bugs in payment flow
+  </div>
+</div>
+
+<h3>2. Capture from any AI</h3>
+<p>
+  When you're already in a conversation with Claude, ChatGPT, or any connected AI, you can save thoughts without switching to Slack. Just ask the AI to remember something:
+</p>
+
+<div class="how-card">
+  <div class="how-card-label">Example — capture from Claude</div>
+  <div class="msg you">
+    <div class="msg-who">You</div>
+    Save this to my brain: realized that our biggest bottleneck isn't engineering capacity — it's the handoff between design and engineering. We lose 2-3 days per feature in translation.
+  </div>
+  <div class="msg ai">
+    <div class="msg-who">Claude</div>
+    Captured as insight — product<br>
+    Topics: bottleneck, design-engineering handoff, process<br>
+    Action items: none<br>
+    ID: 7a3f...
+  </div>
+</div>
+
+<h2>Searching Your Brain</h2>
+<p>
+  This is where the magic is. Ask any connected AI to search your brain using natural language. It finds thoughts by <em>meaning</em>, not just keywords.
+</p>
+
+<div class="how-card">
+  <div class="how-card-label">Example — semantic search from Claude</div>
+  <div class="msg you">
+    <div class="msg-who">You</div>
+    Search my brain for anything about people considering career transitions
+  </div>
+  <div class="msg ai">
+    <div class="msg-who">Claude</div>
+    Found 1 thought:<br><br>
+    1. Sarah mentioned she's thinking about leaving her job to start a consulting business<br>
+    [Type: insight | Category: career | People: Sarah | Relevance: 84%]
+  </div>
+</div>
+
+<div class="tip">
+  <p><strong>Key insight:</strong> You never used the words "career" or "transition" in the original thought — but semantic search connects them by meaning. This is a fundamentally different universe from Ctrl+F.</p>
+</div>
+
+<h2>What You Can Ask</h2>
+
+<table>
+  <tr><th>You say</th><th>What happens</th></tr>
+  <tr><td>"Search my brain for notes about the API redesign"</td><td>Semantic search across all thoughts</td></tr>
+  <tr><td>"What did I capture this week?"</td><td>Browse recent thoughts</td></tr>
+  <tr><td>"Show me my decisions from this month"</td><td>Browse filtered by type</td></tr>
+  <tr><td>"How many thoughts do I have?"</td><td>Stats overview</td></tr>
+  <tr><td>"Who do I mention most?"</td><td>People breakdown from stats</td></tr>
+  <tr><td>"Remember this: [anything]"</td><td>Captures a new thought</td></tr>
+  <tr><td>"Update thought [ID] to say [new content]"</td><td>Edits an existing thought</td></tr>
+  <tr><td>"Delete thought [ID]"</td><td>Removes a thought permanently</td></tr>
+</table>
+
+<h2>Capture Templates</h2>
+<p>
+  These sentence starters are optimized for clean metadata extraction. Use them early to build the habit — after a week you'll develop your own patterns and won't need them.
+</p>
+
+<div class="template">
+  <div class="template-type">Decision</div>
+  <div class="template-text">"Decided to [action] because [reasoning]. [Who] is responsible. Next step: [what]."</div>
+</div>
+<div class="template">
+  <div class="template-type">Person note</div>
+  <div class="template-text">"[Name] mentioned [what]. They're thinking about [context]. Follow up: [action]."</div>
+</div>
+<div class="template">
+  <div class="template-type">Insight</div>
+  <div class="template-text">"Realized that [insight]. This matters because [why]. Implication: [what changes]."</div>
+</div>
+<div class="template">
+  <div class="template-type">Meeting debrief</div>
+  <div class="template-text">"Met with [who] about [topic]. Key takeaway: [what]. Action items: [list]."</div>
+</div>
+<div class="template">
+  <div class="template-type">Task / to-do</div>
+  <div class="template-text">"Need to [what] by [when]. Depends on [who/what]. Priority: [level]."</div>
+</div>
+
+<h2>Connecting Your AI Tools</h2>
+
+<h3>Claude Desktop</h3>
+<div class="connect-step"><div class="connect-num">1</div><div class="connect-text"><p>Settings → Connectors → Add custom connector</p></div></div>
+<div class="connect-step"><div class="connect-num">2</div><div class="connect-text"><p>Name: <code>Open Brain</code></p></div></div>
+<div class="connect-step"><div class="connect-num">3</div><div class="connect-text"><p>URL: your MCP Connection URL (the one ending in <code>?key=your-access-key</code>)</p></div></div>
+<div class="connect-step"><div class="connect-num">4</div><div class="connect-text"><p>Enable it per conversation via the + button → Connectors</p></div></div>
+
+<h3>Claude Code</h3>
+<div class="how-card">
+  <div class="how-card-label">Run in terminal</div>
+  <div class="msg you" style="border-left-color: var(--coral); font-family: var(--mono); font-size: 13px;">
+    claude mcp add --transport http open-brain \<br>
+    &nbsp;&nbsp;https://your-project-ref.supabase.co/functions/v1/open-brain-mcp \<br>
+    &nbsp;&nbsp;--header "x-brain-key: YOUR_ACCESS_KEY"
+  </div>
+</div>
+
+<h3>ChatGPT (paid plans)</h3>
+<div class="connect-step"><div class="connect-num">1</div><div class="connect-text"><p>Settings → Apps & Connectors → Advanced settings → Developer Mode <strong>ON</strong></p></div></div>
+<div class="connect-step"><div class="connect-num">2</div><div class="connect-text"><p>Settings → Apps & Connectors → Create</p></div></div>
+<div class="connect-step"><div class="connect-num">3</div><div class="connect-text"><p>Name: <code>Open Brain</code>, URL: your MCP Connection URL, Auth: No Authentication</p></div></div>
+
+<div class="warning">
+  <p><strong>Note:</strong> Enabling Developer Mode in ChatGPT disables its built-in Memory feature. Your Open Brain replaces it — and works across <em>every</em> AI, not just ChatGPT.</p>
+</div>
+
+<h3>Cursor / VS Code / Windsurf</h3>
+<p>
+  If the client supports remote MCP URLs, paste your Connection URL directly. If it only supports local stdio servers, use the <code>mcp-remote</code> bridge (requires Node.js).
+</p>
+
+<h2>The Weekly Review</h2>
+<p>
+  Every Friday, ask any connected AI:
+</p>
+<div class="how-card">
+  <div class="msg you">
+    <div class="msg-who">You</div>
+    Browse everything I captured this week. Group by topic, flag any unresolved action items, and surface connections I might have missed.
+  </div>
+</div>
+<p>
+  This becomes more valuable every week as your brain grows. Patterns emerge. Connections surface. Forgotten commitments get flagged.
+</p>
+
+<h2>Tips for Building the Habit</h2>
+
+<div class="tip">
+  <p><strong>Lower the bar.</strong> A one-sentence thought is better than nothing. "Marcus wants to move to platform team" is a perfectly good capture. You don't need to write essays.</p>
+</div>
+
+<div class="tip">
+  <p><strong>Capture decisions, not just information.</strong> "Decided to use Postgres instead of MongoDB because we need JOIN support" is far more valuable six months from now than "looked at databases today."</p>
+</div>
+
+<div class="tip">
+  <p><strong>Name people.</strong> "Had a good chat with Sarah about consulting" is searchable by person. "Had a good chat about consulting" isn't.</p>
+</div>
+
+<div class="tip">
+  <p><strong>Don't organize — just capture.</strong> The system handles classification automatically. Your job is to dump your thinking into it. Let the embeddings and metadata do the organizing.</p>
+</div>
+
+<div class="tip">
+  <p><strong>Use it from wherever you are.</strong> In Slack? Type there. In Claude? Ask Claude to save it. In Cursor? Same. Don't switch apps to capture — that kills the habit.</p>
+</div>
+
+<h2>The Compounding Effect</h2>
+
+<p class="bigquote">
+  Every thought you capture makes the next search smarter and the next connection more likely to surface.
+</p>
+
+<p>
+  At 5 thoughts, the system is a toy. At 50, it starts finding connections you missed. At 500, your AI knows your projects, your people, your decisions, your constraints — across every tool you use. It stops asking "can you give me some background?" and starts saying "this is related to what you decided last month about the API."
+</p>
+<p>
+  The gap between "I use AI sometimes" and "AI is embedded in how I think and work" comes down to this infrastructure. Start capturing. The system does the rest.
+</p>
+
+<h2>Quick Reference</h2>
+
+<table>
+  <tr><th>What</th><th>Where</th></tr>
+  <tr><td>Capture thoughts</td><td>Slack <code>#capture</code> channel, or any connected AI</td></tr>
+  <tr><td>Search your brain</td><td>Any connected AI: "search my brain for…"</td></tr>
+  <tr><td>Browse recent</td><td>Any connected AI: "what did I capture this week?"</td></tr>
+  <tr><td>View stats</td><td>Any connected AI: "show me my brain stats"</td></tr>
+  <tr><td>Edit a thought</td><td>Any connected AI: "update thought [ID] to…"</td></tr>
+  <tr><td>Delete a thought</td><td>Any connected AI: "delete thought [ID]"</td></tr>
+  <tr><td>View raw data</td><td>Supabase dashboard → Table Editor → thoughts</td></tr>
+  <tr><td>Check function logs</td><td>Supabase dashboard → Edge Functions → Logs</td></tr>
+</table>
+
+</div>
+</body>
+</html>

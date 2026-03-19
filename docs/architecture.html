@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Brain — Technical Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0c0c0e;
+    --bg2: #141418;
+    --bg3: #1c1c22;
+    --text: #e0ddd5;
+    --text2: #9b978d;
+    --accent: #56b87c;
+    --accent2: #3d8a5c;
+    --blue: #5b8fce;
+    --coral: #d0785c;
+    --amber: #c9a24d;
+    --purple: #8b7ec8;
+    --border: #2a2a32;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 60px 24px 100px;
+  }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent2);
+    padding: 4px 10px;
+    border-radius: 3px;
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: 38px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text);
+    margin-bottom: 12px;
+  }
+  .subtitle {
+    font-size: 19px;
+    color: var(--text2);
+    margin-bottom: 48px;
+    font-style: italic;
+  }
+  h2 {
+    font-family: var(--serif);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--text);
+    margin-top: 56px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  h3 {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 36px;
+    margin-bottom: 12px;
+  }
+  p { margin-bottom: 16px; }
+  a { color: var(--blue); text-decoration: none; border-bottom: 1px solid transparent; }
+  a:hover { border-bottom-color: var(--blue); }
+  code {
+    font-family: var(--mono);
+    font-size: 14px;
+    background: var(--bg3);
+    padding: 2px 7px;
+    border-radius: 3px;
+    color: var(--coral);
+  }
+  pre {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    overflow-x: auto;
+    margin: 16px 0 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--text2);
+  }
+
+  /* Architecture diagram */
+  .arch-diagram {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px 24px;
+    margin: 24px 0 32px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .arch-layer {
+    margin-bottom: 20px;
+  }
+  .arch-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text2);
+    margin-bottom: 8px;
+  }
+  .arch-boxes {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .arch-box {
+    padding: 10px 16px;
+    border-radius: 5px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .arch-box.green { background: #1a3328; color: var(--accent); border: 1px solid #2a4d3a; }
+  .arch-box.blue { background: #1a2840; color: var(--blue); border: 1px solid #2a3d5a; }
+  .arch-box.coral { background: #2d1f18; color: var(--coral); border: 1px solid #4a3028; }
+  .arch-box.purple { background: #221e38; color: var(--purple); border: 1px solid #3a3458; }
+  .arch-box.amber { background: #2a2218; color: var(--amber); border: 1px solid #4a3a28; }
+  .arch-arrow {
+    text-align: center;
+    color: var(--text2);
+    font-size: 18px;
+    margin: 8px 0;
+    opacity: 0.5;
+  }
+
+  /* Info cards */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+  .card-title {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .card p { color: var(--text2); font-size: 15px; margin-bottom: 8px; }
+  .card p:last-child { margin-bottom: 0; }
+
+  /* Schema table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 24px;
+    font-size: 14px;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text2);
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  td code { font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  .type { color: var(--purple); font-family: var(--mono); font-size: 13px; }
+
+  /* Cost table */
+  .cost-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+  }
+  .cost-row:last-child { border-bottom: none; }
+  .cost-service { color: var(--text); }
+  .cost-price { color: var(--accent); font-family: var(--mono); font-size: 14px; }
+
+  .highlight {
+    background: linear-gradient(135deg, #1a3328 0%, #1a2840 100%);
+    border: 1px solid var(--accent2);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin: 24px 0;
+  }
+  .highlight p { color: var(--text); margin-bottom: 0; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="badge">Technical Reference</div>
+<h1>Open Brain Architecture</h1>
+<p class="subtitle">How your personal AI memory system works under the hood</p>
+
+<h2>System Overview</h2>
+<p>
+  Open Brain is a personal knowledge system built on three free services. You type a thought — in Slack or through any AI assistant — and it gets automatically converted into a vector embedding (a mathematical representation of its meaning), classified with metadata, and stored in a PostgreSQL database. Any AI tool that speaks the MCP protocol can then search that database by meaning, not just keywords.
+</p>
+
+<div class="arch-diagram">
+  <div class="arch-layer">
+    <div class="arch-label">Capture layer — where thoughts enter</div>
+    <div class="arch-boxes">
+      <div class="arch-box green">Slack #capture channel</div>
+      <div class="arch-box green">Any MCP client (Claude, ChatGPT, Cursor…)</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">Processing — two Supabase Edge Functions</div>
+    <div class="arch-boxes">
+      <div class="arch-box coral">ingest-thought</div>
+      <div class="arch-box purple">open-brain-mcp</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">Intelligence — via OpenRouter API gateway</div>
+    <div class="arch-boxes">
+      <div class="arch-box amber">text-embedding-3-small (embeddings)</div>
+      <div class="arch-box amber">gpt-4o-mini (metadata extraction)</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">Storage — Supabase Postgres + pgvector</div>
+    <div class="arch-boxes">
+      <div class="arch-box blue">thoughts table + HNSW vector index</div>
+    </div>
+  </div>
+  <div class="arch-arrow">↓</div>
+  <div class="arch-layer">
+    <div class="arch-label">Retrieval — MCP protocol over HTTPS</div>
+    <div class="arch-boxes">
+      <div class="arch-box green">Claude Desktop</div>
+      <div class="arch-box green">Claude Code</div>
+      <div class="arch-box green">ChatGPT</div>
+      <div class="arch-box green">Cursor / VS Code</div>
+    </div>
+  </div>
+</div>
+
+<h2>The Three Services</h2>
+
+<div class="card">
+  <div class="card-title">Supabase — your database &amp; server</div>
+  <p>An open-source Firebase alternative. Gives you a PostgreSQL database, automatic REST API, and Edge Functions (serverless code that runs near your users). Your project is hosted at <code>your-project-ref.supabase.co</code>. The free tier covers everything you need.</p>
+</div>
+
+<div class="card">
+  <div class="card-title">OpenRouter — your AI gateway</div>
+  <p>A universal API that routes requests to any AI model. We use it for two things: generating vector embeddings (via OpenAI's <code>text-embedding-3-small</code>) and extracting metadata from your thoughts (via <code>gpt-4o-mini</code>). One key, one billing relationship, any model.</p>
+</div>
+
+<div class="card">
+  <div class="card-title">Slack — your capture interface</div>
+  <p>A private channel in your workspace (<code>your-workspace.slack.com</code>) where you type raw thoughts. A Slack app called "Open Brain" listens for messages and forwards them to your Edge Function. You can also capture directly from any MCP-connected AI.</p>
+</div>
+
+<h2>Edge Functions Explained</h2>
+<p>
+  Supabase Edge Functions are small pieces of server-side code (written in TypeScript/Deno) that run on-demand in the cloud. They don't need a server — they wake up when called and go to sleep after. You have two:
+</p>
+
+<h3>1. ingest-thought</h3>
+<p>
+  This is the Slack integration. When you type a message in your <code>#capture</code> channel, Slack sends a webhook event to this function's URL. The function:
+</p>
+<div class="card">
+  <p>① Receives the Slack message and validates it's from the capture channel</p>
+  <p>② Generates a 1536-dimensional vector embedding of the text (via OpenRouter → OpenAI)</p>
+  <p>③ Extracts structured metadata — type, category, people, topics, action items (via OpenRouter → GPT-4o-mini)</p>
+  <p>④ Steps 2 and 3 run in parallel for speed</p>
+  <p>⑤ Stores everything as a single row in the <code>thoughts</code> table</p>
+  <p>⑥ Replies in the Slack thread with a confirmation summary</p>
+</div>
+
+<h3>2. open-brain-mcp</h3>
+<p>
+  This is the MCP server — the interface that lets any AI tool talk to your brain. It implements the <a href="https://modelcontextprotocol.io">Model Context Protocol</a> as a JSON-RPC API over HTTP. When Claude (or ChatGPT, Cursor, etc.) wants to search your brain, it sends a JSON-RPC request to this function. The function processes it and returns results.
+</p>
+<p>
+  It exposes 6 tools that any connected AI can call:
+</p>
+
+<table>
+  <tr><th>Tool</th><th>What it does</th></tr>
+  <tr><td><code>search_thoughts</code></td><td>Semantic search — finds thoughts by meaning, not keywords. Generates an embedding of your query and finds the closest matches using cosine similarity.</td></tr>
+  <tr><td><code>browse_recent</code></td><td>Lists recent thoughts chronologically. Can filter by type, category, or source.</td></tr>
+  <tr><td><code>brain_stats</code></td><td>Returns totals and breakdowns — how many thoughts, by type, category, source, and people mentioned.</td></tr>
+  <tr><td><code>capture_thought</code></td><td>Saves a new thought directly from any AI client — same embedding + metadata pipeline as Slack capture.</td></tr>
+  <tr><td><code>update_thought</code></td><td>Replaces content of an existing thought by ID. Re-generates embedding and metadata.</td></tr>
+  <tr><td><code>delete_thought</code></td><td>Permanently removes a thought by ID.</td></tr>
+</table>
+
+<h2>Database Schema</h2>
+<p>
+  One table, proper typed columns for the things you filter on, plus a flexible JSONB column for future metadata. The <code>pgvector</code> extension adds native vector operations to PostgreSQL.
+</p>
+
+<table>
+  <tr><th>Column</th><th>Type</th><th>Purpose</th></tr>
+  <tr><td><code>id</code></td><td class="type">uuid</td><td>Auto-generated unique identifier</td></tr>
+  <tr><td><code>content</code></td><td class="type">text</td><td>The raw thought text</td></tr>
+  <tr><td><code>embedding</code></td><td class="type">vector(1536)</td><td>Mathematical representation of meaning — powers semantic search</td></tr>
+  <tr><td><code>type</code></td><td class="type">text</td><td>Classification: decision, person_note, insight, meeting_note, idea, task, reference, note</td></tr>
+  <tr><td><code>category</code></td><td class="type">text</td><td>Topic area: career, product, health, finance, etc.</td></tr>
+  <tr><td><code>source</code></td><td class="type">text</td><td>Where it came from: "slack" or "mcp"</td></tr>
+  <tr><td><code>people</code></td><td class="type">text[]</td><td>Names mentioned in the thought</td></tr>
+  <tr><td><code>action_items</code></td><td class="type">text[]</td><td>Extracted next steps or to-dos</td></tr>
+  <tr><td><code>topics</code></td><td class="type">text[]</td><td>1–3 key topics</td></tr>
+  <tr><td><code>metadata</code></td><td class="type">jsonb</td><td>Flexible field for future extensions</td></tr>
+  <tr><td><code>created_at</code></td><td class="type">timestamptz</td><td>When captured</td></tr>
+  <tr><td><code>updated_at</code></td><td class="type">timestamptz</td><td>Last modified</td></tr>
+</table>
+
+<p>
+  The <code>match_thoughts</code> function performs vector similarity search using the <code>&lt;=&gt;</code> cosine distance operator. An HNSW (Hierarchical Navigable Small World) index makes this fast even at scale.
+</p>
+
+<h2>How Semantic Search Works</h2>
+<p>
+  Traditional search matches keywords — searching "career" only finds documents containing the word "career." Semantic search matches <em>meaning</em>. When you type "career changes," the system:
+</p>
+<div class="card">
+  <p>① Converts your query into a 1536-dimensional vector via the same embedding model</p>
+  <p>② Compares that vector to every stored thought using cosine similarity</p>
+  <p>③ Returns thoughts ranked by how close their meaning is to your query</p>
+  <p>④ "Sarah is thinking about leaving her job" matches "career changes" even though they share zero words</p>
+</div>
+
+<h2>Authentication</h2>
+<p>
+  The MCP server uses a simple access key passed as a URL parameter (<code>?key=...</code>), HTTP header (<code>x-brain-key</code>), or Bearer token. The key is stored as a Supabase secret and checked on every request. The database itself uses Row Level Security — only the service role (your Edge Functions) can read or write data.
+</p>
+
+<h2>MCP Protocol</h2>
+<p>
+  The <a href="https://modelcontextprotocol.io">Model Context Protocol</a> is an open standard (originally by Anthropic, now backed by OpenAI, Google, Microsoft, and the Linux Foundation) that lets AI clients discover and call tools. It uses JSON-RPC 2.0 over HTTP. The flow:
+</p>
+<div class="card">
+  <p>① AI client connects via GET (SSE) to discover the endpoint</p>
+  <p>② Client sends <code>initialize</code> → server returns capabilities</p>
+  <p>③ Client sends <code>tools/list</code> → server returns the 6 available tools</p>
+  <p>④ Client sends <code>tools/call</code> with tool name + arguments → server executes and returns results</p>
+</div>
+
+<h2>Data Flow — Complete Picture</h2>
+<pre>
+You type in Slack          You ask Claude a question
+       │                            │
+       ▼                            ▼
+Slack sends webhook         Claude calls MCP tool
+       │                            │
+       ▼                            ▼
+ingest-thought              open-brain-mcp
+(Edge Function)             (Edge Function)
+       │                            │
+       ├──→ OpenRouter ←────────────┤
+       │    (embed + classify)      │
+       │                            │
+       ▼                            ▼
+   Supabase Postgres ◄──────► pgvector search
+   (store thought)          (find by meaning)
+       │                            │
+       ▼                            ▼
+Slack thread reply          Results → Claude → you
+</pre>
+
+<h2>Running Cost</h2>
+<div class="card">
+  <div class="cost-row"><span class="cost-service">Supabase (free tier)</span><span class="cost-price">$0.00</span></div>
+  <div class="cost-row"><span class="cost-service">Slack (free tier)</span><span class="cost-price">$0.00</span></div>
+  <div class="cost-row"><span class="cost-service">Embeddings (~20 thoughts/day)</span><span class="cost-price">~$0.02/mo</span></div>
+  <div class="cost-row"><span class="cost-service">Metadata extraction (~20 thoughts/day)</span><span class="cost-price">~$0.08–0.28/mo</span></div>
+  <div class="cost-row" style="border-top: 2px solid var(--border); margin-top: 4px; padding-top: 12px;"><span class="cost-service" style="font-weight: 600;">Total</span><span class="cost-price">~$0.10–0.30/mo</span></div>
+</div>
+
+<h2>Your Configuration</h2>
+<table>
+  <tr><th>Component</th><th>Value</th></tr>
+  <tr><td>Supabase project ref</td><td><code>your-project-ref</code></td></tr>
+  <tr><td>Supabase URL</td><td><code>https://your-project-ref.supabase.co</code></td></tr>
+  <tr><td>Ingest function</td><td><code>.../functions/v1/ingest-thought</code></td></tr>
+  <tr><td>MCP server</td><td><code>.../functions/v1/open-brain-mcp</code></td></tr>
+  <tr><td>Slack workspace</td><td><code>your-workspace.slack.com</code></td></tr>
+  <tr><td>Capture channel ID</td><td><code>YOUR_CHANNEL_ID</code></td></tr>
+  <tr><td>Embedding model</td><td><code>openai/text-embedding-3-small</code> (1536 dim)</td></tr>
+  <tr><td>Classification model</td><td><code>openai/gpt-4o-mini</code></td></tr>
+</table>
+
+<h2>Extending the System</h2>
+<p>
+  The schema is designed for clean extension. Some paths forward:
+</p>
+<div class="card">
+  <p><strong>New capture sources</strong> — Create another Edge Function (e.g. for Telegram, email, or a web form) that calls the same embed + classify + store pipeline.</p>
+  <p><strong>Thought linking</strong> — Add a <code>thought_links</code> table with columns <code>from_id</code>, <code>to_id</code>, <code>link_type</code> to build a knowledge graph.</p>
+  <p><strong>Tags</strong> — Add a <code>tags</code> table with a many-to-many join table for flexible labeling beyond the current <code>topics</code> array.</p>
+  <p><strong>Swap models</strong> — Change the model strings in the Edge Functions and redeploy. Keep embedding dimensions at 1536 unless you also update the migration.</p>
+  <p><strong>Dashboard</strong> — Build a React app that queries the <code>thoughts</code> table via Supabase's auto-generated REST API.</p>
+</div>
+
+<div class="highlight">
+  <p>The architecture is deliberately boring. PostgreSQL, HTTP, JSON. No proprietary formats, no vendor lock-in. If Supabase disappeared tomorrow, you'd export a SQL dump and spin up Postgres anywhere. If OpenRouter changed pricing, you'd point at OpenAI directly. Every piece is replaceable. That's the point.</p>
+</div>
+
+</div>
+</body>
+</html>

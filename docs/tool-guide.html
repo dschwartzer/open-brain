@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Brain — Tool Invocation Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Source+Serif+4:ital,opsz,wght@0,8..60,300;0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #faf9f6;
+    --bg2: #f0eeea;
+    --bg3: #e6e3dd;
+    --text: #1a1a18;
+    --text2: #5c5a52;
+    --accent: #2d7a4f;
+    --accent-bg: #e8f4ed;
+    --blue: #2a6cb6;
+    --blue-bg: #e8f0fa;
+    --coral: #c4603a;
+    --coral-bg: #faf0eb;
+    --amber: #9a7520;
+    --amber-bg: #faf5e8;
+    --purple: #6b5eaa;
+    --purple-bg: #f0eef8;
+    --border: #d8d5ce;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--serif); font-size: 17px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+  .container { max-width: 820px; margin: 0 auto; padding: 60px 24px 100px; }
+  .badge { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); background: var(--accent-bg); padding: 4px 10px; border-radius: 3px; margin-bottom: 16px; }
+  h1 { font-family: var(--serif); font-size: 36px; font-weight: 600; line-height: 1.2; margin-bottom: 12px; }
+  .subtitle { font-size: 19px; color: var(--text2); margin-bottom: 48px; font-style: italic; }
+  h2 { font-family: var(--serif); font-size: 24px; font-weight: 600; margin-top: 56px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h3 { font-family: var(--mono); font-size: 14px; font-weight: 500; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 32px; margin-bottom: 12px; }
+  p { margin-bottom: 16px; }
+  code { font-family: var(--mono); font-size: 14px; background: var(--bg2); padding: 2px 7px; border-radius: 3px; color: var(--coral); }
+  pre { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 20px; overflow-x: auto; margin: 16px 0 24px; font-family: var(--mono); font-size: 13px; line-height: 1.6; color: var(--text2); }
+  strong { font-weight: 600; }
+  a { color: var(--blue); }
+
+  .card { background: white; border: 1px solid var(--border); border-radius: 8px; padding: 20px 24px; margin: 16px 0; }
+  .card-label { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+
+  .tip { background: var(--accent-bg); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; padding: 16px 20px; margin: 20px 0; font-size: 15px; }
+  .tip p { margin-bottom: 0; }
+  .tip strong { color: var(--accent); }
+
+  .warning { background: var(--amber-bg); border-left: 3px solid var(--amber); border-radius: 0 6px 6px 0; padding: 16px 20px; margin: 20px 0; font-size: 15px; }
+  .warning p { margin-bottom: 0; }
+
+  /* Tool cards */
+  .tool-card { background: white; border: 1px solid var(--border); border-radius: 8px; margin: 16px 0; overflow: hidden; }
+  .tool-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .tool-name { font-family: var(--mono); font-size: 15px; font-weight: 500; color: var(--text); }
+  .tool-tag { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 3px; }
+  .tool-tag.thought { background: var(--accent-bg); color: var(--accent); }
+  .tool-tag.kb { background: var(--purple-bg); color: var(--purple); }
+  .tool-body { padding: 16px 20px; }
+  .tool-desc { font-size: 14px; color: var(--text2); margin-bottom: 12px; padding: 12px 16px; background: var(--bg2); border-radius: 4px; font-family: var(--mono); line-height: 1.6; white-space: pre-wrap; }
+  .tool-params { font-size: 14px; }
+  .tool-param { display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--bg2); }
+  .tool-param:last-child { border-bottom: none; }
+  .tool-param-name { font-family: var(--mono); color: var(--coral); min-width: 100px; font-size: 13px; }
+  .tool-param-desc { color: var(--text2); font-size: 14px; }
+  .tool-param-req { font-family: var(--mono); font-size: 10px; color: var(--amber); text-transform: uppercase; }
+
+  /* Trigger table */
+  .trigger-table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 15px; }
+  .trigger-table th { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text2); text-align: left; padding: 10px 12px; border-bottom: 2px solid var(--border); }
+  .trigger-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .trigger-table tr:last-child td { border-bottom: none; }
+  .trigger-phrase { font-family: var(--mono); font-size: 13px; color: var(--blue); background: var(--blue-bg); padding: 2px 6px; border-radius: 3px; display: inline-block; margin: 2px 0; }
+  .trigger-tool { font-family: var(--mono); font-size: 13px; color: var(--coral); }
+
+  .flow-step { display: flex; gap: 16px; margin: 12px 0; align-items: flex-start; }
+  .flow-num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--accent); color: white; font-family: var(--mono); font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+  .flow-text { flex: 1; }
+
+  .edit-section { background: var(--coral-bg); border: 1px solid #e8c9bc; border-radius: 8px; padding: 20px 24px; margin: 20px 0; }
+  .edit-section h3 { color: var(--coral); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="badge">Reference &amp; Customization Guide</div>
+<h1>How Claude Decides Which Tool to Use</h1>
+<p class="subtitle">Understanding MCP tool matching — and how to control it</p>
+
+<!-- ============ SECTION 1: HOW IT WORKS ============ -->
+
+<h2>1. The Matching Mechanism</h2>
+
+<p>
+  When you type a message to Claude and the Open Brain connector is enabled, Claude sees a list of <strong>tool definitions</strong> alongside your message. Each tool has three components that Claude uses to decide whether and when to call it:
+</p>
+
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-text"><p><strong>Tool name</strong> — a machine identifier like <code>search_thoughts</code>. Claude considers this but relies more on the description.</p></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-text"><p><strong>Description</strong> — a natural language explanation of what the tool does and when to use it. <em>This is the primary signal Claude uses to decide whether to invoke the tool.</em> It's essentially a prompt to Claude about the tool's purpose.</p></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-text"><p><strong>Input schema</strong> — the parameters the tool accepts, with types and their own descriptions. Claude uses these to figure out what arguments to pass once it's decided to call the tool.</p></div></div>
+
+<div class="tip">
+  <p><strong>Key insight:</strong> The tool description is <em>prompt engineering aimed at Claude</em>. If you want Claude to invoke a tool more readily, you improve the description — the same way you'd improve a prompt. The description tells Claude "call me when the user says something like X."</p>
+</div>
+
+<p>
+  Here's the decision flow Claude follows on every message:
+</p>
+
+<div class="flow-step"><div class="flow-num">A</div><div class="flow-text"><p>Claude reads your message and all available tool descriptions</p></div></div>
+<div class="flow-step"><div class="flow-num">B</div><div class="flow-text"><p>It determines whether any tool is relevant to your request — based on semantic matching between your words and the tool descriptions</p></div></div>
+<div class="flow-step"><div class="flow-num">C</div><div class="flow-text"><p>If yes, it extracts the right parameter values from your message and calls the tool</p></div></div>
+<div class="flow-step"><div class="flow-num">D</div><div class="flow-text"><p>It reads the tool's response and incorporates it into its reply to you</p></div></div>
+
+<div class="warning">
+  <p><strong>Why Claude sometimes doesn't call your tool:</strong> If the description doesn't clearly overlap with how you phrased your request, Claude will answer from its own knowledge instead. This is the #1 reason tools feel "unreliable" — the fix is almost always a better description, not a different prompt from you.</p>
+</div>
+
+<!-- ============ SECTION 2: YOUR TOOLS ============ -->
+
+<h2>2. Your Current Tool Definitions</h2>
+
+<p>
+  These are the exact descriptions your MCP server sends to Claude. Each word matters — Claude reads these on every conversation to decide what to call.
+</p>
+
+<h3>Personal Thought Tools</h3>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">search_thoughts</span>
+    <span class="tool-tag thought">thoughts</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Search your personal thoughts/captures by meaning. For searching knowledge base documents, use search_knowledge instead.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">query</span><span class="tool-param-desc">What you're looking for — natural language</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">threshold</span><span class="tool-param-desc">Minimum similarity 0-1. Default 0.3</span></div>
+      <div class="tool-param"><span class="tool-param-name">limit</span><span class="tool-param-desc">Max results. Default 10</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">browse_recent</span>
+    <span class="tool-tag thought">thoughts</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Browse your most recent personal thoughts. Optionally filter by type, category, or source.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">limit</span><span class="tool-param-desc">Number of thoughts. Default 20</span></div>
+      <div class="tool-param"><span class="tool-param-name">type</span><span class="tool-param-desc">Filter: decision, person_note, insight, meeting_note, idea, task, reference, note</span></div>
+      <div class="tool-param"><span class="tool-param-name">category</span><span class="tool-param-desc">Filter by category</span></div>
+      <div class="tool-param"><span class="tool-param-name">source</span><span class="tool-param-desc">Filter: slack, mcp</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">brain_stats</span>
+    <span class="tool-tag thought">thoughts</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Overview of your brain — total thoughts, breakdown by type, category, source, people. Also shows knowledge base collections.</div>
+    <div class="tool-params"><em style="color: var(--text2); font-size: 14px;">No parameters</em></div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">capture_thought</span>
+    <span class="tool-tag thought">thoughts</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Save a thought, decision, insight, or note. Automatically embeds and classifies it.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">content</span><span class="tool-param-desc">The thought to capture</span><span class="tool-param-req">required</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">update_thought</span>
+    <span class="tool-tag thought">thoughts</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Update an existing thought. Re-generates embedding and metadata.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">id</span><span class="tool-param-desc">The thought ID to update</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">content</span><span class="tool-param-desc">The new content</span><span class="tool-param-req">required</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">delete_thought</span>
+    <span class="tool-tag thought">thoughts</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Permanently delete a thought by ID.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">id</span><span class="tool-param-desc">The thought ID to delete</span><span class="tool-param-req">required</span></div>
+    </div>
+  </div>
+</div>
+
+<h3>Knowledge Base Tools</h3>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">search_knowledge</span>
+    <span class="tool-tag kb">knowledge base</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Search your knowledge base (documents, articles, conversations, transcripts) by meaning. Can scope to a specific collection or search everything. Use this for WhatsApp exports, blog posts, trading knowledge, podcast transcripts, etc.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">query</span><span class="tool-param-desc">What you're looking for — natural language. Works in Hebrew and English.</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">collection</span><span class="tool-param-desc">Optional: collection name to scope search (e.g. 'WhatsApp Groups', 'Trading Knowledge')</span></div>
+      <div class="tool-param"><span class="tool-param-name">threshold</span><span class="tool-param-desc">Minimum similarity 0-1. Default 0.25</span></div>
+      <div class="tool-param"><span class="tool-param-name">limit</span><span class="tool-param-desc">Max results. Default 10</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">list_collections</span>
+    <span class="tool-tag kb">knowledge base</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">List all knowledge base collections with document counts and chunk counts.</div>
+    <div class="tool-params"><em style="color: var(--text2); font-size: 14px;">No parameters</em></div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">create_collection</span>
+    <span class="tool-tag kb">knowledge base</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Create a new knowledge base collection to organize documents by topic or source.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">name</span><span class="tool-param-desc">Collection name</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">description</span><span class="tool-param-desc">What this collection contains</span></div>
+      <div class="tool-param"><span class="tool-param-name">source_type</span><span class="tool-param-desc">Type: whatsapp, blog, trading, podcast, other</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">language</span><span class="tool-param-desc">Primary language: 'he' or 'en'. Default 'en'</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-header">
+    <span class="tool-name">ingest_document</span>
+    <span class="tool-tag kb">knowledge base</span>
+  </div>
+  <div class="tool-body">
+    <div class="tool-desc">Add a document to a collection. Automatically chunks the content, generates embeddings for each chunk, and makes it all searchable. For large content, pass the full text — chunking is handled automatically. Works with Hebrew and English.</div>
+    <div class="tool-params">
+      <div class="tool-param"><span class="tool-param-name">collection</span><span class="tool-param-desc">Collection name to add this document to</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">title</span><span class="tool-param-desc">Document title</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">content</span><span class="tool-param-desc">The full text content to ingest</span><span class="tool-param-req">required</span></div>
+      <div class="tool-param"><span class="tool-param-name">source_url</span><span class="tool-param-desc">Optional: URL or source reference</span></div>
+      <div class="tool-param"><span class="tool-param-name">author</span><span class="tool-param-desc">Optional: author name</span></div>
+      <div class="tool-param"><span class="tool-param-name">chunk_size</span><span class="tool-param-desc">Optional: target chunk size in characters. Default 800</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SECTION 3: TRIGGER PHRASES ============ -->
+
+<h2>3. Recommended Trigger Phrases</h2>
+
+<p>
+  Claude doesn't have true "/" commands. But because tool selection is driven by semantic matching against descriptions, you can use <strong>consistent trigger phrases</strong> that reliably invoke the right tool. Think of these as your personal shortcuts — they work because the tool descriptions were written to match them.
+</p>
+
+<table class="trigger-table">
+  <tr><th>You type</th><th>Tool invoked</th><th>Why it matches</th></tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">search brain: [query]</span><br>
+      <span class="trigger-phrase">find in my thoughts: [query]</span>
+    </td>
+    <td><span class="trigger-tool">search_thoughts</span></td>
+    <td>Words "brain", "thoughts", "find" match the description</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">search kb: [query]</span><br>
+      <span class="trigger-phrase">search [collection name]: [query]</span><br>
+      <span class="trigger-phrase">look up in trading knowledge: [query]</span>
+    </td>
+    <td><span class="trigger-tool">search_knowledge</span></td>
+    <td>"knowledge base", "documents", collection names trigger this</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">remember: [text]</span><br>
+      <span class="trigger-phrase">save this: [text]</span><br>
+      <span class="trigger-phrase">capture: [text]</span>
+    </td>
+    <td><span class="trigger-tool">capture_thought</span></td>
+    <td>"save", "remember", "capture" match "Save a thought" in description</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">recent thoughts</span><br>
+      <span class="trigger-phrase">what did I capture lately?</span>
+    </td>
+    <td><span class="trigger-tool">browse_recent</span></td>
+    <td>"recent" is in the tool name and description</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">brain stats</span><br>
+      <span class="trigger-phrase">how many thoughts do I have?</span>
+    </td>
+    <td><span class="trigger-tool">brain_stats</span></td>
+    <td>Direct name match + "overview" in description</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">ingest this into [collection]: [text]</span><br>
+      <span class="trigger-phrase">add to [collection]: [text]</span>
+    </td>
+    <td><span class="trigger-tool">ingest_document</span></td>
+    <td>"add", "ingest", collection name trigger this</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">list collections</span><br>
+      <span class="trigger-phrase">what's in my knowledge base?</span>
+    </td>
+    <td><span class="trigger-tool">list_collections</span></td>
+    <td>"collections", "knowledge base" match</td>
+  </tr>
+  <tr>
+    <td>
+      <span class="trigger-phrase">create collection: [name]</span>
+    </td>
+    <td><span class="trigger-tool">create_collection</span></td>
+    <td>Direct match on "create" + "collection"</td>
+  </tr>
+</table>
+
+<div class="tip">
+  <p><strong>Pro tip:</strong> Mentioning a collection name by itself is often enough. If you have a "Trading Knowledge" collection, typing <span class="trigger-phrase">search trading knowledge: risk management</span> will route to <code>search_knowledge</code> with the collection parameter filled in automatically.</p>
+</div>
+
+<!-- ============ SECTION 4: HOW TO CUSTOMIZE ============ -->
+
+<h2>4. How to Customize Tool Descriptions</h2>
+
+<p>
+  All tool definitions live in one file:
+</p>
+
+<pre>~/open-brain/supabase/functions/open-brain-mcp/index.ts</pre>
+
+<p>
+  Look for the <code>TOOLS</code> array. Each tool is an object with <code>name</code>, <code>description</code>, and <code>inputSchema</code>. Here's the anatomy:
+</p>
+
+<pre>{
+  name: "search_knowledge",          // Machine identifier — don't change
+  description: "Search your...",      // ← THIS IS WHAT YOU TUNE
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: "What you're..."  // ← Parameter-level hint
+      },
+      collection: {
+        type: "string",
+        description: "Optional:..."    // ← Also tunable
+      }
+    },
+    required: ["query"]
+  }
+}</pre>
+
+<div class="edit-section">
+  <h3>What to change</h3>
+  <p><strong>The <code>description</code> field</strong> is your primary lever. This is what Claude reads to decide if the tool is relevant. Think of it as a prompt aimed at Claude: "When the user says X, call this tool."</p>
+  <p style="margin-top: 12px;"><strong>Parameter descriptions</strong> help Claude extract the right values from the user's message. If Claude is passing wrong parameters, improve these.</p>
+  <p style="margin-top: 12px;"><strong>The <code>name</code></strong> — don't change this unless you also update the <code>handleTool</code> switch statement.</p>
+</div>
+
+<h3>Description writing tips</h3>
+
+<div class="card">
+  <p><strong>Be specific about when to use vs. not use.</strong> The description for <code>search_thoughts</code> says "For searching knowledge base documents, use search_knowledge instead." This disambiguation prevents Claude from calling the wrong tool.</p>
+  <p style="margin-top: 8px;"><strong>List concrete examples.</strong> The <code>search_knowledge</code> description says "WhatsApp exports, blog posts, trading knowledge, podcast transcripts." These specific nouns give Claude more surface area to match against your prompts.</p>
+  <p style="margin-top: 8px;"><strong>Mention languages.</strong> "Works in Hebrew and English" tells Claude it can pass Hebrew queries, which it might otherwise hesitate to do.</p>
+  <p style="margin-top: 8px;"><strong>As you add collections, update the description.</strong> If you create a "Cooking Recipes" collection, add "cooking recipes" to the <code>search_knowledge</code> description so Claude knows to route food questions there.</p>
+</div>
+
+<h3>Example: making a tool more trigger-happy</h3>
+
+<p>If you find Claude isn't searching your brain proactively enough, you could change:</p>
+
+<pre>// Before (passive — waits to be asked)
+"Search your personal thoughts/captures by meaning."
+
+// After (proactive — suggests when to use)
+"Search your personal thoughts, captures, decisions, and notes by meaning.
+Call this tool whenever the user asks about something they previously
+thought about, decided, noted, or discussed. Also call it when context
+from past thoughts would improve the answer — even if the user didn't
+explicitly ask to search."</pre>
+
+<div class="warning">
+  <p><strong>Caution:</strong> Making descriptions too aggressive causes Claude to call the tool on nearly every message, which slows down responses. Find the balance — specific triggers that match your actual usage patterns.</p>
+</div>
+
+<h3>After editing, redeploy</h3>
+<pre>cd ~/open-brain
+supabase functions deploy open-brain-mcp --no-verify-jwt</pre>
+<p>Start a new conversation in Claude to pick up the changes (tool definitions are loaded at conversation start).</p>
+
+<!-- ============ SECTION 5: DESIGNING FOR MULTIPLE COLLECTIONS ============ -->
+
+<h2>5. Designing for Your Knowledge Base Roadmap</h2>
+
+<p>
+  As you add more collections (WhatsApp groups, blog posts, trading knowledge, podcasts), the key design decision is: <strong>how should Claude know which collection to search?</strong>
+</p>
+
+<h3>Strategy A: Let the user specify</h3>
+<p>Explicit routing — you mention the collection name and Claude passes it as a parameter.</p>
+<pre>You: "search trading knowledge: what's the consensus on NVDA options?"
+→ search_knowledge(query="NVDA options", collection="Trading Knowledge")</pre>
+
+<h3>Strategy B: Let Claude infer</h3>
+<p>Leave the collection empty and search everything. Good for when you don't know where the answer lives.</p>
+<pre>You: "what did anyone say about the new Apple headset?"
+→ search_knowledge(query="Apple headset") // searches all collections</pre>
+
+<h3>Strategy C: Update descriptions to route automatically</h3>
+<p>The most powerful approach. Add routing hints directly into the <code>search_knowledge</code> description:</p>
+<pre>"Search your knowledge base by meaning. Route by topic:
+- Stock/trading/market/portfolio questions → scope to 'Trading Knowledge'
+- WhatsApp/group discussion questions → scope to 'WhatsApp Groups'
+- Blog/writing/content questions → scope to 'My Blog Posts'
+- AI/LLM/GenAI/ML questions → scope to 'GenAI Podcasts'
+Leave collection empty to search everything."</pre>
+<p>This teaches Claude to auto-route without you specifying the collection name. You'd update this as you add collections.</p>
+
+<div class="tip">
+  <p><strong>Recommended approach:</strong> Start with Strategy A (explicit) while you're building the system. Once you have several collections populated and know your usage patterns, evolve to Strategy C (auto-routing descriptions). Strategy B (search everything) is always available as a fallback.</p>
+</div>
+
+<!-- ============ SECTION 6: THE FULL PICTURE ============ -->
+
+<h2>6. Where Everything Lives</h2>
+
+<table class="trigger-table">
+  <tr><th>What</th><th>Where to edit</th><th>When to change</th></tr>
+  <tr>
+    <td>Tool descriptions</td>
+    <td><code>open-brain-mcp/index.ts</code> → <code>TOOLS</code> array</td>
+    <td>When Claude picks the wrong tool or doesn't pick one at all</td>
+  </tr>
+  <tr>
+    <td>Parameter descriptions</td>
+    <td>Same file → each tool's <code>inputSchema.properties</code></td>
+    <td>When Claude passes wrong values to a tool</td>
+  </tr>
+  <tr>
+    <td>Tool behavior (what the tool actually does)</td>
+    <td>Same file → <code>handleTool()</code> switch cases</td>
+    <td>When you want to change the output format or add logic</td>
+  </tr>
+  <tr>
+    <td>Database schema</td>
+    <td>Supabase SQL Editor</td>
+    <td>When you need new columns, tables, or indexes</td>
+  </tr>
+  <tr>
+    <td>Metadata extraction categories</td>
+    <td>Same file → <code>extractMetadata()</code> system prompt</td>
+    <td>When you want different type/category classifications</td>
+  </tr>
+  <tr>
+    <td>Embedding model</td>
+    <td>Same file → model string in <code>generateEmbedding()</code></td>
+    <td>When you want a different model (keep dimensions at 1536)</td>
+  </tr>
+  <tr>
+    <td>Chunking logic</td>
+    <td>Same file → <code>chunkText()</code> function</td>
+    <td>When chunks are too big/small for your content type</td>
+  </tr>
+</table>
+
+<div class="card" style="margin-top: 32px;">
+  <p style="font-size: 18px; font-style: italic; color: var(--text2); margin-bottom: 0;">
+    The entire system is one TypeScript file, one database, and your descriptions. That's it. Every behavior you want to change is a string edit and a redeploy.
+  </p>
+</div>
+
+</div>
+</body>
+</html>

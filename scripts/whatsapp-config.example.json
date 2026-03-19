@@ -1,0 +1,17 @@
+{
+  "supabase_url": "https://your-project-ref.supabase.co",
+  "collection_name": "WhatsApp Groups",
+  "defaults": {
+    "gap": 10,
+    "maxChars": 1500,
+    "maxMsgs": 15,
+    "overlap": 3,
+    "merge": 300
+  },
+  "groups": [
+    {
+      "name": "My Group",
+      "file": "~/exports/my-group.txt"
+    }
+  ]
+}

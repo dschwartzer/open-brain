@@ -1,0 +1,21 @@
+display_information:
+  name: Open Brain
+features:
+  bot_user:
+    display_name: Open Brain
+    always_online: false
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - channels:history
+      - groups:history
+settings:
+  event_subscriptions:
+    request_url: https://your-project-ref.supabase.co/functions/v1/ingest-thought
+    bot_events:
+      - message.channels
+      - message.groups
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

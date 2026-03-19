@@ -1,0 +1,23 @@
+# Environment
+.env
+.env.local
+
+# Supabase
+supabase/.temp/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# WhatsApp exports (contain private messages)
+*.txt
+
+# IDE
+.vscode/
+.idea/
+scripts/whatsapp-config.json
+scripts/whatsapp-config.local.json
+scripts/*.local.*
