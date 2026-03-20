@@ -1,0 +1,25 @@
+name: Keep Supabase Alive
+
+on:
+  schedule:
+    # Runs daily at 06:00 UTC (09:00 Israel time)
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Allow manual trigger for testing
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Edge Function
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"jsonrpc":"2.0","method":"ping","id":1}' \
+            "${{ secrets.MCP_ENDPOINT_URL }}")
+          echo "Response status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "::warning::Edge Function returned $STATUS"
+            exit 1
+          fi
+          echo "✅ Supabase project is alive"
