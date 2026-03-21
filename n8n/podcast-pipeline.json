@@ -1,0 +1,2484 @@
+{
+  "name": "Podcast Main Pipeline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f35f4376-6042-480e-920a-eb658135b698",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.rss_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "id": "d553e57d-5f3b-48d0-b89f-db3abd7dbf25",
+      "name": "Fetch RSS Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1456,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const feed = $('Read Feeds').item.json;\nconst xmlString = $input.first().json.data || \n                  $input.first().json.body || \n                  String($input.first().json);\n\nconst getText = (xml, tag) => {\n  const re = new RegExp(\n    `<${tag}[^>]*><!\\\\[CDATA\\\\[([\\\\s\\\\S]*?)\\\\]\\\\]><\\\\/${tag}>` +\n    `|<${tag}[^>]*>([^<]*)<\\\\/${tag}>`, 'i'\n  );\n  const m = xml.match(re);\n  return m ? (m[1] || m[2] || '').trim() : '';\n};\n\nconst getAttr = (xml, tag, attr) => {\n  const re = new RegExp(`<${tag}[^>\\\\n]*\\\\s${attr}=['\"](.*?)['\"]`, 'i');\n  const m = xml.match(re);\n  return m ? m[1] : '';\n};\n\nconst episodes = [];\nconst itemRe = /<item>([\\s\\S]*?)<\\/item>/g;\nlet match;\n\nwhile ((match = itemRe.exec(xmlString)) !== null) {\n  const item = match[1];\n  const audioUrl = getAttr(item, 'enclosure', 'url');\n  if (!audioUrl) continue;\n\n  // Try itunes:episode first\n  let epNum = parseInt(getText(item, 'itunes:episode')) || 0;\n  \n  // If no itunes:episode tag, extract from title (e.g., \"32 - AI PM: No-code Tools\")\n  if (epNum === 0) {\n    const title = getText(item, 'title');\n    const titleMatch = title.match(/^(\\d+)\\s*[-–—]/);\n    if (titleMatch) {\n      epNum = parseInt(titleMatch[1]);\n    }\n  }\n    \n  episodes.push({\n    // Unique tracking ID\n    episode_id: `${feed.feed_id}_${epNum}`,\n    \n    // Feed metadata (from Sheets)\n    feed_id: feed.feed_id,\n    feed_name: feed.feed_name,\n    collection_name: feed.collection_name,\n    language: feed.language,\n    \n    // Episode metadata (from RSS)\n    episode_number: epNum,\n    title: getText(item, 'title'),\n    description: getText(item, 'description'),\n    pub_date: getText(item, 'pubDate').substring(0, 16),\n    duration: getText(item, 'itunes:duration'),\n    audio_url: audioUrl\n  });\n}\n\nepisodes.sort((a, b) => a.episode_number - b.episode_number);\nreturn episodes.map(ep => ({ json: ep }));"
+      },
+      "id": "9f10a3dd-7a06-461a-8ea0-0341f85c175b",
+      "name": "Parse Episodes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        -400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.runpod.ai/v2/YOUR_RUNPOD_ENDPOINT_ID/run",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.RUNPOD_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"datatype\": \"url\",\n    \"model\": \"ivrit-ai/whisper-large-v3-turbo-ct2\",\n    \"transcribe_args\": {\n      \"url\": \"https://drive.google.com/uc?export=download&id={{ $('Upload file').item.json.id }}\",\n      \"language\": \"he\",\n      \"diarize\": true\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "e4309ecf-02d1-47f6-99f5-29cc23ba98d2",
+      "name": "Submit to RunPod",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3760,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const runpod  = $input.item.json;\nconst episode = $('Loop Over Items').item.json;\n\nreturn {\n  ...episode,\n  job_id:     runpod.id,\n  job_status: runpod.status || 'IN_QUEUE'\n};"
+      },
+      "id": "88959afb-78f0-4b43-a3b5-05c0a2d1be5f",
+      "name": "Attach Job ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3952,
+        -192
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 20,
+        "unit": "seconds"
+      },
+      "id": "412b9559-0d6d-47ad-8b5f-1f45cb82e0ae",
+      "name": "Wait 45s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        1072,
+        32
+      ],
+      "webhookId": "wait-poll-langtalks-001"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.runpod.ai/v2/YOUR_RUNPOD_ENDPOINT_ID/status/{{ $json.job_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.RUNPOD_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "97ff945d-24c3-4cf8-b571-6e4b8da45f14",
+      "name": "Poll RunPod Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1296,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const poll = $input.item.json;\nconst episode = $('Loop Over Items').item.json;  \n\nlet transcript = '';\n\nif (poll.status === 'COMPLETED' && poll.output?.[0]?.result?.[0]) {\n  // Segments are inside result[0]\n  const segments = poll.output[0].result[0];\n  \n  let lines = [];\n  let currentSpeaker = null;\n  let currentText = '';\n\n  for (const segment of segments) {\n    const speaker = segment.speakers?.[0] ?? 'SPEAKER_?';\n    const text = (segment.text ?? '').trim();\n    \n    if (!text) continue;\n\n    if (speaker !== currentSpeaker) {\n      if (currentText) {\n        lines.push(`**${currentSpeaker}:** ${currentText.trim()}`);\n      }\n      currentSpeaker = speaker;\n      currentText = text;\n    } else {\n      currentText += ' ' + text;\n    }\n  }\n\n  // Don't forget the last speaker's text\n  if (currentText) {\n    lines.push(`**${currentSpeaker}:** ${currentText.trim()}`);\n  }\n\n  transcript = lines.join('\\n\\n');\n}\n\nreturn {\n  ...episode,\n  job_id: poll.id || episode.job_id,\n  job_status: poll.status,\n  transcript: transcript\n};"
+      },
+      "id": "067ddffc-2461-4a31-aa1f-7bbafbf5c61e",
+      "name": "Merge Poll Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-completed",
+              "leftValue": "={{ $json.job_status }}",
+              "rightValue": "COMPLETED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7e2ed8bd-2cab-4680-85c5-263e6de7016c",
+      "name": "Is Completed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2128,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $vars.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 4096,\n  \"system\": \"You are an expert at distilling technical podcasts into actionable knowledge. The podcast is in Hebrew. Your job is to extract and explain the KEY LEARNINGS so the reader gains the knowledge without listening.\\n\\nWrite in ENGLISH. Return HTML only — no ```html, no ```, no markdown, no tables with |.\\n\\nStructure:\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">📝 Episode Summary</h2>\\n<p style=\\\"font-size: 20px; margin: 0 0 24px 0; color: #1f2937;\\\">2-3 sentences: what this episode covers and why it matters.</p>\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">🎓 Key Learnings</h2>\\n<p style=\\\"font-size: 18px; color: #6b7280; margin: 0 0 12px 0;\\\">The core knowledge from this episode:</p>\\n<ul style=\\\"font-size: 20px; margin: 0 0 24px 0; padding-left: 24px; color: #1f2937;\\\">\\n<li style=\\\"margin-bottom: 16px;\\\"><strong>Concept/Insight</strong> — Explain it in 2-3 sentences. What is it? Why does it matter? How is it used?</li>\\n</ul>\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">💡 Practical Takeaways</h2>\\n<ul style=\\\"font-size: 20px; margin: 0 0 24px 0; padding-left: 24px; color: #1f2937;\\\">\\n<li style=\\\"margin-bottom: 12px;\\\">Actionable advice or best practices mentioned</li>\\n</ul>\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">🛠️ Tools & Technologies</h2>\\n<p style=\\\"font-size: 20px; margin: 0; color: #1f2937;\\\"><strong>Tool name</strong> — what it does and when to use it</p>\\n\\nRules:\\n- Max 800 words total\\n- 3-6 key learnings, each with real explanation (not just bullet headers)\\n- Write so someone learns the content WITHOUT listening\\n- No \\\"Best For\\\" or \\\"Guest\\\" sections\\n- Return clean HTML only\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"Episode {{ $json.episode_number }}: {{ $json.safe_title }}\\nRecorded: {{ $json.pub_date }}\\n\\nTranscript:\\n{{ $json.safe_transcript }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "d843ded3-cc2b-46bd-843a-d24977f40da5",
+      "name": "Summarize with Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3552,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "d770af65-dfae-46c4-8bbf-fc1bdbbbd3d3",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "FAILED",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1488,
+        -16
+      ],
+      "id": "841ee5bc-1ac1-4ce0-91eb-058eea3b3a1c",
+      "name": "If FAILED?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Loop Over Items').item.json.audio_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3168,
+        -192
+      ],
+      "id": "2de79650-5011-463e-9df5-28971bb70225",
+      "name": "Download Audio"
+    },
+    {
+      "parameters": {
+        "name": "={{ $json.episode_number }}_{{ $json.title }}.mp3",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "YOUR_GDRIVE_FOLDER_ID",
+          "mode": "list",
+          "cachedResultName": "Podcasts",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/YOUR_GDRIVE_FOLDER_ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3376,
+        -192
+      ],
+      "id": "468354e3-bc89-442d-85be-ccc2addac33b",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "share",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "permissionsUi": {
+          "permissionsValues": {
+            "role": "reader",
+            "type": "anyone"
+          }
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        3568,
+        -192
+      ],
+      "id": "f3028311-76e5-459c-a856-6b434d482071",
+      "name": "Share file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "YOUR_GDRIVE_CREDENTIAL_ID",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Podcast transcription tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 528047993,
+          "mode": "list",
+          "cachedResultName": "Feeds",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=528047993"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "active",
+              "lookupValue": "true"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1280,
+        -400
+      ],
+      "id": "4b0ddcca-ed9a-47c7-94ce-e2502e7083eb",
+      "name": "Read Feeds",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Podcast transcription tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1292519122,
+          "mode": "list",
+          "cachedResultName": "Episodes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1292519122"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1824,
+        -400
+      ],
+      "id": "868db2dc-c0fb-483d-8611-91631271a76d",
+      "name": "Read Episodes Sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all episodes from RSS (via Parse Episodes)\nconst episodes = $('Parse Episodes').all().map(i => i.json);\n\n// Get existing rows from sheet (may be empty on first run)\nlet existingRows = [];\ntry {\n  existingRows = $('Read Episodes Sheet').all().map(i => i.json);\n} catch (e) {\n  // Sheet is empty, that's fine\n  existingRows = [];\n}\n\n// Build lookup map by episode_id\nconst existing = {};\nfor (const row of existingRows) {\n  if (row.episode_id) {\n    existing[row.episode_id] = row;\n  }\n}\n\nconst TWO_HOURS_MS = 2 * 60 * 60 * 1000;\nconst now = new Date();\n\nconst toProcess = [];\nconst toUpdate = [];\nconst toInsert = [];\n\nfor (const ep of episodes) {\n  const row = existing[ep.episode_id];\n  \n  if (!row) {\n    // ═══ NEW EPISODE ═══\n    // Not in sheet yet - add it and queue for processing\n    toInsert.push({\n      episode_id: ep.episode_id,\n      feed_id: ep.feed_id,\n      episode_number: ep.episode_number,\n      title: ep.title,\n      pub_date: ep.pub_date,\n      duration: ep.duration,\n      audio_url: ep.audio_url,\n      status: 'new',\n      retry_count: 0,\n      runpod_job_id: '',\n      gdrive_file_id: '',\n      transcript_chars: '',\n      openbrain_doc_id: '',\n      started_at: '',\n      completed_at: '',\n      error_message: '',\n      last_updated: now.toISOString()\n    });\n    toProcess.push({ ...ep, retry_count: 0 });\n    continue;\n  }\n  \n  // Episode exists in sheet - check status\n  const status = row.status;\n  const retryCount = parseInt(row.retry_count) || 0;\n  const startedAt = row.started_at ? new Date(row.started_at) : null;\n  \n  if (status === 'completed' || status === 'skipped') {\n    // ═══ ALREADY DONE ═══\n    continue;\n  }\n  \n  if (status === 'processing') {\n    // ═══ CHECK IF STUCK ═══\n    if (startedAt && (now - startedAt) > TWO_HOURS_MS) {\n      // Stuck for over 2 hours\n      if (retryCount >= 3) {\n        // Max retries exceeded - mark as permanently failed\n        toUpdate.push({\n          episode_id: ep.episode_id,\n          status: 'failed',\n          error_message: 'Max retries exceeded (stuck in processing)',\n          last_updated: now.toISOString()\n        });\n      } else {\n        // Reset to new and retry\n        toUpdate.push({\n          episode_id: ep.episode_id,\n          status: 'new',\n          retry_count: retryCount + 1,\n          started_at: '',\n          last_updated: now.toISOString()\n        });\n        toProcess.push({ ...ep, retry_count: retryCount + 1 });\n      }\n    }\n    // If within 2 hours, skip (still processing normally)\n    continue;\n  }\n  \n  if (status === 'failed') {\n    // ═══ RETRY FAILED ═══\n    if (retryCount < 3) {\n      toUpdate.push({\n        episode_id: ep.episode_id,\n        status: 'new',\n        retry_count: retryCount + 1,\n        error_message: '',\n        last_updated: now.toISOString()\n      });\n      toProcess.push({ ...ep, retry_count: retryCount + 1 });\n    }\n    // If retryCount >= 3, permanently failed - skip\n    continue;\n  }\n  \n  if (status === 'new') {\n    // ═══ RESUME INTERRUPTED ═══\n    toProcess.push({ ...ep, retry_count: retryCount });\n    continue;\n  }\n}\n\n// Return summary for debugging + the three arrays\nreturn [{\n  json: {\n    summary: {\n      total_in_rss: episodes.length,\n      total_in_sheet: existingRows.length,\n      to_insert: toInsert.length,\n      to_update: toUpdate.length,\n      to_process: toProcess.length\n    },\n    toInsert,\n    toUpdate,\n    toProcess\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        -400
+      ],
+      "id": "c6b35e4e-68c0-49af-9595-389e69785e6c",
+      "name": "Check Status & Filter"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Podcast transcription tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1292519122,
+          "mode": "list",
+          "cachedResultName": "Episodes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1292519122"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "episode_id",
+              "displayName": "episode_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "feed_id",
+              "displayName": "feed_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "episode_number",
+              "displayName": "episode_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pub_date",
+              "displayName": "pub_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration",
+              "displayName": "duration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "audio_url",
+              "displayName": "audio_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "runpod_job_id",
+              "displayName": "runpod_job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gdrive_file_id",
+              "displayName": "gdrive_file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transcript_chars",
+              "displayName": "transcript_chars",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "openbrain_doc_id",
+              "displayName": "openbrain_doc_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2512,
+        -624
+      ],
+      "id": "9598d83a-b991-4798-897a-b17910837faa",
+      "name": "Insert New Episodes",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Check Status & Filter').first().json;\n\n// If nothing to insert, return empty (but don't block flow)\nif (!data.toInsert || data.toInsert.length === 0) {\n  return [];\n}\n\n// Return each row as a separate item for Google Sheets\nreturn data.toInsert.map(row => ({ json: row }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2304,
+        -624
+      ],
+      "id": "fe1924d8-f0b5-4dd0-a2b0-d8997d34d612",
+      "name": "Extract toInsert"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Check Status & Filter').first().json;\n\nif (!data.toUpdate || data.toUpdate.length === 0) {\n  return [];\n}\n\nreturn data.toUpdate.map(row => ({ json: row }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2304,
+        -432
+      ],
+      "id": "7bb48439-71a4-4068-977b-bb80edffe852",
+      "name": "Extract toUpdate",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Podcast transcription tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1292519122,
+          "mode": "list",
+          "cachedResultName": "Episodes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1292519122"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [
+            "episode_id"
+          ],
+          "schema": [
+            {
+              "id": "episode_id",
+              "displayName": "episode_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "feed_id",
+              "displayName": "feed_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "episode_number",
+              "displayName": "episode_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pub_date",
+              "displayName": "pub_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration",
+              "displayName": "duration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "audio_url",
+              "displayName": "audio_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "runpod_job_id",
+              "displayName": "runpod_job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gdrive_file_id",
+              "displayName": "gdrive_file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transcript_chars",
+              "displayName": "transcript_chars",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "openbrain_doc_id",
+              "displayName": "openbrain_doc_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2512,
+        -432
+      ],
+      "id": "cd07c060-1eb2-4637-9f02-67d76a0866df",
+      "name": "Update Existing Episodes",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Check Status & Filter').first().json;\n\nif (!data.toProcess || data.toProcess.length === 0) {\n  return [];\n}\n\nreturn data.toProcess.map(row => ({ json: row }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2304,
+        -208
+      ],
+      "id": "8c9433e8-115b-4fb8-ba07-1772017c60dd",
+      "name": "Extract toProcess"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Podcast transcription tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1292519122,
+          "mode": "list",
+          "cachedResultName": "Episodes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1292519122"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "episode_id": "={{ $json.episode_id }}",
+            "status": "processing",
+            "started_at": "={{ $now.toISO() }}",
+            "last_updated": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "episode_id"
+          ],
+          "schema": [
+            {
+              "id": "episode_id",
+              "displayName": "episode_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "feed_id",
+              "displayName": "feed_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "episode_number",
+              "displayName": "episode_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pub_date",
+              "displayName": "pub_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration",
+              "displayName": "duration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "audio_url",
+              "displayName": "audio_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "runpod_job_id",
+              "displayName": "runpod_job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gdrive_file_id",
+              "displayName": "gdrive_file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transcript_chars",
+              "displayName": "transcript_chars",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "openbrain_doc_id",
+              "displayName": "openbrain_doc_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2976,
+        -192
+      ],
+      "id": "452b02f1-04dc-4ac8-bb89-838627be94a7",
+      "name": "Set Processing Status",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2720,
+        -208
+      ],
+      "id": "e5ed3520-fec5-4a73-a656-db7f24d18f52",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const claudeResp = $input.item.json;\nconst episode = $('Prepare for Claude').item.json;  // Get episode data from before Claude API call\n\nlet summaryHtml = claudeResp.content?.[0]?.text || '<p>שגיאה ביצירת הסיכום</p>';\n\n// Remove markdown code block wrappers if Claude added them\nsummaryHtml = summaryHtml\n  .replace(/^```html\\s*/i, '')\n  .replace(/^```\\s*/gm, '')\n  .replace(/```\\s*$/g, '')\n  .trim();\n\n// Build the full email\nconst fullHtml = `\n<div dir=\"ltr\" style=\"font-family: -apple-system, Arial, sans-serif; padding: 24px; background: #ffffff;\">\n  <div style=\"background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); padding: 28px; border-radius: 16px; margin-bottom: 28px;\">\n    <h1 style=\"color: white; margin: 0; font-size: 32px; font-weight: 600;\">🎙️ ${episode.feed_name}</h1>\n    <p style=\"color: rgba(255,255,255,0.95); margin: 12px 0 0 0; font-size: 22px;\">פרק ${episode.episode_number}: ${episode.title}</p>\n    <p style=\"color: rgba(255,255,255,0.8); margin: 8px 0 0 0; font-size: 18px;\">${episode.pub_date}</p>\n  </div>\n  <div dir=\"ltr\" style=\"font-family: -apple-system, Arial, sans-serif; line-height: 1.6;\">\n    ${summaryHtml}\n  </div>\n  <p style=\"color: #9ca3af; font-size: 14px; margin-top: 32px; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 16px;\">\n    🤖 נוצר אוטומטית\n  </p>\n</div>\n`;\n\nreturn {\n  ...episode,\n  summary: summaryHtml,\n  summary_html: fullHtml\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3776,
+        240
+      ],
+      "id": "52f89abd-47a3-4fdc-b2f2-6507453f4ec5",
+      "name": "Extract Summary"
+    },
+    {
+      "parameters": {
+        "sendTo": "your-email@example.com",
+        "subject": "=🎙️ פרק חדש: {{ $json.title }}",
+        "message": "={{ $json.summary_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        3968,
+        240
+      ],
+      "id": "a15427de-6083-4efa-983e-7eadee1c3150",
+      "name": "Send Email",
+      "webhookId": "YOUR_GMAIL_WEBHOOK_ID",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;  // Changed .item to .first() (runOnceForAllItems mode)\n\n// Escape the transcript for safe JSON embedding\nconst safeTranscript = (data.transcript || '')\n  .substring(0, 100000)\n  .replace(/\\\\/g, '\\\\\\\\')\n  .replace(/\"/g, '\\\\\"')\n  .replace(/\\n/g, '\\\\n')\n  .replace(/\\r/g, '\\\\r')\n  .replace(/\\t/g, '\\\\t');\n\nconst safeDescription = (data.description || '')\n  .replace(/\\\\/g, '\\\\\\\\')\n  .replace(/\"/g, '\\\\\"')\n  .replace(/\\n/g, '\\\\n')\n  .replace(/\\r/g, '\\\\r')\n  .replace(/\\t/g, '\\\\t');\n\nconst safeTitle = (data.title || '')\n  .replace(/\\\\/g, '\\\\\\\\')\n  .replace(/\"/g, '\\\\\"');\n\nreturn {\n  ...data,\n  safe_transcript: safeTranscript,\n  safe_description: safeDescription,\n  safe_title: safeTitle\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3360,
+        240
+      ],
+      "id": "95281071-7642-482a-94e6-d0925e1cb69b",
+      "name": "Prepare for Claude"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;  // Changed .item to .first()\nconst transcript = data.transcript || '';\n\n// Extract first ~2000 chars to identify speakers from intro\nconst introSection = transcript.substring(0, 2000);\n\n// Escape for safe JSON embedding\nconst safeIntro = introSection\n  .replace(/\\\\/g, '\\\\\\\\')\n  .replace(/\"/g, '\\\\\"')\n  .replace(/\\n/g, '\\\\n')\n  .replace(/\\r/g, '\\\\r')\n  .replace(/\\t/g, '\\\\t');\n\n// Find all unique speaker labels\nconst speakerLabels = [...new Set(transcript.match(/SPEAKER_\\d+/g) || [])];\n\nreturn {\n  ...data,\n  intro_section: safeIntro,\n  speaker_labels: speakerLabels,\n  speaker_count: speakerLabels.length\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2384,
+        64
+      ],
+      "id": "b8f66903-5344-4cc3-b140-12e7b0e47672",
+      "name": "Identify Speakers"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $vars.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 500,\n  \"system\": \"You identify speakers in Hebrew podcast transcripts. Based on introductions, context clues, and speaking patterns, map SPEAKER_XX labels to real names.\\n\\nRespond ONLY with a valid JSON object mapping speaker labels to names. If you cannot identify a speaker, use a descriptive label like \\\"מנחה\\\" (host) or \\\"אורח\\\" (guest).\\n\\nExample response:\\n{\\\"SPEAKER_00\\\": \\\"גל\\\", \\\"SPEAKER_01\\\": \\\"לי\\\"}\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"This is from the podcast '{{ $json.feed_name }}'. Identify the speakers:\\n\\n{{ $json.intro_section }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2656,
+        64
+      ],
+      "id": "49069d9c-ee3f-4f4e-aeaa-2778c00fc595",
+      "name": "Ask Claude for Speakers"
+    },
+    {
+      "parameters": {
+        "jsCode": "const claudeResp = $input.first().json;\nconst episode = $('Identify Speakers').first().json;  // KEEP .first() - this has the transcript!\n\n// Parse Claude's speaker mapping\nlet speakerMap = {};\ntry {\n  const responseText = claudeResp.content?.[0]?.text || '{}';\n  const jsonMatch = responseText.match(/\\{[\\s\\S]*\\}/);\n  if (jsonMatch) {\n    speakerMap = JSON.parse(jsonMatch[0]);\n  }\n} catch (e) {\n  speakerMap = {\n    \"SPEAKER_00\": \"דובר 1\",\n    \"SPEAKER_01\": \"דובר 2\"\n  };\n}\n\n// Replace speaker labels in transcript\nlet transcript = episode.transcript || '';\n\nfor (const [label, name] of Object.entries(speakerMap)) {\n  const regex = new RegExp(`\\\\*\\\\*${label}:\\\\*\\\\*`, 'g');\n  transcript = transcript.replace(regex, `**${name}:**`);\n}\n\nreturn {\n  ...episode,\n  transcript: transcript,\n  speaker_map: speakerMap\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        64
+      ],
+      "id": "7e367770-1a91-4168-b0ff-26e97c751d83",
+      "name": "Replace Speaker Labels"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get data from Extract Summary (direct input)\nconst data = $input.item.json;\n\n// Format title for searchability\nconst pubDate = data.pub_date ? data.pub_date.split(',')[0].trim() : '';\nconst title = `${data.feed_name} | פרק ${data.episode_number} | ${pubDate} | ${data.title}`;\n\n// Get speaker names for metadata\nconst speakerNames = data.speaker_map ? Object.values(data.speaker_map).join(', ') : '';\n\n// Escape content for JSON\nconst safeContent = (data.transcript || '')\n  .replace(/\\\\/g, '\\\\\\\\')\n  .replace(/\"/g, '\\\\\"')\n  .replace(/\\n/g, '\\\\n')\n  .replace(/\\r/g, '\\\\r')\n  .replace(/\\t/g, '\\\\t');\n\nconst safeTitle = title\n  .replace(/\\\\/g, '\\\\\\\\')\n  .replace(/\"/g, '\\\\\"');\n\nreturn {\n  collection: 'Podcasts',\n  title: safeTitle,\n  content: safeContent,\n  source_url: data.audio_url,\n  author: speakerNames || data.feed_name,\n  \n  episode_id: data.episode_id,\n  transcript_length: (data.transcript || '').length,\n  episode_number: data.episode_number,\n  summary: data.summary\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        576
+      ],
+      "id": "d59e04c9-69de-46b7-bf51-20f53be1af56",
+      "name": "Prepare for Open Brain"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const episode = $('Loop Over Items').item.json;  // Keep .item but mode must be runOnceForEachItem\n\nconst currentRetry = parseInt(episode.retry_count) || 0;\nconst newRetryCount = currentRetry + 1;\n\nreturn {\n  episode_id: episode.episode_id,\n  retry_count: newRetryCount,\n  should_give_up: newRetryCount >= 3,\n  status: newRetryCount >= 3 ? 'failed' : 'failed',\n  error_message: newRetryCount >= 3 \n    ? 'Max retries exceeded (3 attempts)' \n    : 'RunPod transcription failed - will retry'\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        -64
+      ],
+      "id": "245143b6-4da4-42cf-af81-56e00ff4c3e9",
+      "name": "Handle Failure"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Podcast transcription tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1292519122,
+          "mode": "list",
+          "cachedResultName": "Episodes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1292519122"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "episode_id": "={{ $json.episode_id }}",
+            "status": "failed",
+            "retry_count": "={{ $json.retry_count }}",
+            "error_message": "={{ $json.error_message }}",
+            "last_updated": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "episode_id",
+              "displayName": "episode_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "feed_id",
+              "displayName": "feed_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "episode_number",
+              "displayName": "episode_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pub_date",
+              "displayName": "pub_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration",
+              "displayName": "duration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "audio_url",
+              "displayName": "audio_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "runpod_job_id",
+              "displayName": "runpod_job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gdrive_file_id",
+              "displayName": "gdrive_file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transcript_chars",
+              "displayName": "transcript_chars",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "openbrain_doc_id",
+              "displayName": "openbrain_doc_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2016,
+        -64
+      ],
+      "id": "234aba0a-a893-49a5-b18c-a799680e58bf",
+      "name": "Update Sheet: Failed",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Get input from Prepare for Open Brain\nconst input = $('Prepare for Open Brain').item.json;  // Changed .first() to .item\n\n// Hardcoded Podcasts collection ID (from your Supabase)\nconst PODCASTS_COLLECTION_ID = 'YOUR_PODCASTS_COLLECTION_ID';\n\nreturn {\n  ...input,\n  collection_id: PODCASTS_COLLECTION_ID,\n  collection_name: 'Podcasts'\n};"
+      },
+      "id": "0942b4ab-0b83-4f4b-8b52-7ca6cd318cd8",
+      "name": "Prepare Document Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/documents?select=id&collection_id=eq.{{ $json.collection_id }}&title=ilike.*{{ $json.episode_id.split('_').pop() }} -*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_API_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.SUPABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9f797b69-daa9-4b28-8555-71dda993f55c",
+      "name": "Check Existing Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1472,
+        576
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const prepData = $('Prepare Document Data').item.json;  // Changed .first() to .item\nconst checkResult = $input.item.json;  // Changed .first() to .item\n\n// Handle array response from Supabase\nlet existingDocs = Array.isArray(checkResult) ? checkResult : [];\n\nconst existingDoc = existingDocs.length > 0 && existingDocs[0].id ? existingDocs[0] : null;\n\nreturn {\n  ...prepData,\n  existing_doc_id: existingDoc ? existingDoc.id : null,\n  needs_delete: !!existingDoc\n};"
+      },
+      "id": "03357403-e232-4256-8462-038fb30f3846",
+      "name": "Check If Delete Needed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1648,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.needs_delete }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "4aab106a-8913-4404-84cd-7ee7388c355b",
+      "name": "Needs Delete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1824,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/documents?id=eq.{{ $json.existing_doc_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_API_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.SUPABASE_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "65cc0ba3-d2e8-4e34-b6cc-2af8fe646023",
+      "name": "Delete Existing Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2032,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass through data from Check If Delete Needed\nreturn $input.first().json;  // Use direct input, not node reference"
+      },
+      "id": "c80e1ab0-1175-42e9-a34a-4d7909a72e56",
+      "name": "After Delete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass through data (no delete needed)\nreturn $input.first().json;  // Use direct input, not node reference"
+      },
+      "id": "7ff62f82-7a4e-4b84-8a7b-8231db126d45",
+      "name": "Skip Delete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2032,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_PROJECT.supabase.co/rest/v1/documents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $vars.SUPABASE_API_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $vars.SUPABASE_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"collection_id\": \"{{ $json.collection_id }}\",\n  \"title\": {{ JSON.stringify($json.title) }},\n  \"content\": {{ JSON.stringify($json.content) }},\n  \"source_url\": {{ JSON.stringify($json.source_url || '') }},\n  \"author\": {{ JSON.stringify($json.author || '') }},\n  \"language\": \"he\"\n}",
+        "options": {}
+      },
+      "id": "7843164c-2604-485f-b632-10c73cfe2360",
+      "name": "Insert Document",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;  // Now comes from Merge Doc Response\n\n// document_id is already in input from Merge Doc Response\nconst docId = input.document_id;\n\nif (!docId) {\n  throw new Error('Failed to get document ID: ' + JSON.stringify(input));\n}\n\nconst collectionId = input.collection_id;\nconst content = input.content || '';\n\n// Chunk function - paragraph aware\nfunction chunkText(text, maxSize = 800, overlap = 100) {\n  const chunks = [];\n  const paragraphs = text.split(/\\n\\n+/);\n  let currentChunk = '';\n  \n  for (const para of paragraphs) {\n    const trimmedPara = para.trim();\n    if (!trimmedPara) continue;\n    \n    if (currentChunk.length + trimmedPara.length + 2 <= maxSize) {\n      currentChunk += (currentChunk ? '\\n\\n' : '') + trimmedPara;\n    } else {\n      if (currentChunk) {\n        chunks.push(currentChunk);\n        // Keep overlap\n        const words = currentChunk.split(' ');\n        const overlapWords = words.slice(-Math.ceil(overlap / 5));\n        currentChunk = overlapWords.join(' ') + '\\n\\n' + trimmedPara;\n      } else {\n        // Paragraph too long, split by sentences\n        const sentences = trimmedPara.match(/[^.!?]+[.!?]+/g) || [trimmedPara];\n        for (const sent of sentences) {\n          if (currentChunk.length + sent.length <= maxSize) {\n            currentChunk += sent;\n          } else {\n            if (currentChunk) chunks.push(currentChunk);\n            currentChunk = sent;\n          }\n        }\n      }\n    }\n  }\n  \n  if (currentChunk) chunks.push(currentChunk);\n  return chunks;\n}\n\nconst chunks = chunkText(content, 800, 100);\n\n// Return array of chunks\nreturn chunks.map((chunk, index) => ({\n  json: {\n    document_id: docId,\n    collection_id: collectionId,\n    content: chunk,\n    chunk_index: index,\n    total_chunks: chunks.length,\n    episode_id: input.episode_id,\n    transcript_length: input.transcript_length\n  }\n}));"
+      },
+      "id": "60d3bc67-f1b1-41dd-a01f-bf89d0a4b6b6",
+      "name": "Chunk Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2784,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Podcast transcription tracker",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1292519122,
+          "mode": "list",
+          "cachedResultName": "Episodes",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR_GOOGLE_SHEET_ID/edit#gid=1292519122"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "episode_id": "={{ $('Extract Summary').item.json.episode_id }}",
+            "status": "completed",
+            "transcript_chars": "={{ $('Extract Summary').item.json.transcript_length }}",
+            "completed_at": "={{ $now.toISO() }}",
+            "last_updated": "={{ $now.toISO() }}"
+          },
+          "matchingColumns": [
+            "episode_id"
+          ],
+          "schema": [
+            {
+              "id": "episode_id",
+              "displayName": "episode_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "feed_id",
+              "displayName": "feed_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "episode_number",
+              "displayName": "episode_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "pub_date",
+              "displayName": "pub_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "duration",
+              "displayName": "duration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "audio_url",
+              "displayName": "audio_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "retry_count",
+              "displayName": "retry_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "runpod_job_id",
+              "displayName": "runpod_job_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "gdrive_file_id",
+              "displayName": "gdrive_file_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "transcript_chars",
+              "displayName": "transcript_chars",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "openbrain_doc_id",
+              "displayName": "openbrain_doc_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "started_at",
+              "displayName": "started_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed_at",
+              "displayName": "completed_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_updated",
+              "displayName": "last_updated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4176,
+        240
+      ],
+      "id": "723d09dc-7ef8-4b83-9b25-5545eaef84ef",
+      "name": "Update Sheet: Completed",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_GSHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Insert Document response contains all inserted fields (due to Prefer: return=representation)\nconst docResponse = $input.first().json;\nconst docArray = Array.isArray(docResponse) ? docResponse : [docResponse];\nconst doc = docArray[0];\n\n// All data comes from the Supabase response\nconst docId = doc.id;\nconst collectionId = doc.collection_id;\nconst content = doc.content || '';\nconst title = doc.title || '';\n\n// Extract episode_id from title (format: \"LangTalks | פרק 13 | Tue | 13 - ...\")\nconst episodeMatch = title.match(/פרק\\s*(\\d+)/);\nconst episodeNumber = episodeMatch ? parseInt(episodeMatch[1]) : 0;\n\n// Construct episode_id from feed name pattern\nconst feedMatch = title.match(/^([^|]+)/);\nconst feedName = feedMatch ? feedMatch[1].trim().toLowerCase().replace(/\\s+/g, '') : 'unknown';\nconst episodeId = `${feedName}_${episodeNumber}`;\n\nreturn {\n  document_id: docId,\n  collection_id: collectionId,\n  content: content,\n  title: title,\n  episode_id: episodeId,\n  episode_number: episodeNumber,\n  transcript_length: content.length\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        560
+      ],
+      "id": "58159110-7e15-476e-8d65-092d351369a8",
+      "name": "Merge Doc Response"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $vars.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-6\",\n  \"max_tokens\": 4096,\n  \"system\": \"אתה מומחה לניתוח פודקאסטים טכנולוגיים. צור סיכום HTML קצר וקריא בעברית.\\n\\nכללים קריטיים:\\n1. החזר HTML בלבד - ללא ```html, ללא ```, ללא markdown, ללא טבלאות עם |\\n2. פונטים: 20px לטקסט, 28px לכותרות ראשיות\\n3. מקסימום 5 נקודות בכל רשימה\\n4. אורך מקסימלי: 600 מילים\\n5. אל תכלול בשום אופן: סעיף \\\"למי מתאים\\\", סעיף \\\"אורח\\\"\\n\\nמבנה נדרש:\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">📝 תקציר</h2>\\n<p style=\\\"font-size: 20px; margin: 0 0 24px 0; color: #1f2937;\\\">2-3 משפטים</p>\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">💡 תובנות מרכזיות</h2>\\n<ul style=\\\"font-size: 20px; margin: 0 0 24px 0; padding-right: 24px; color: #1f2937;\\\">\\n<li style=\\\"margin-bottom: 12px;\\\"><strong>נקודה</strong> - הסבר קצר</li>\\n</ul>\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">🔄 מבט עדכני (מרץ 2026)</h2>\\n<p style=\\\"font-size: 18px; color: #6b7280; margin: 0 0 12px 0;\\\">הפרק מ-{{ $json.pub_date }} - הנה מה שהשתנה מאז:</p>\\n<ul style=\\\"font-size: 20px; margin: 0 0 24px 0; padding-right: 24px; color: #1f2937;\\\">\\n<li style=\\\"margin-bottom: 12px;\\\">🟢/🟡/🔴 <strong>נושא</strong> - מה המצב היום</li>\\n</ul>\\n\\n<h2 style=\\\"color: #2563eb; font-size: 28px; margin: 0 0 16px 0;\\\">🛠️ כלים שהוזכרו</h2>\\n<p style=\\\"font-size: 20px; margin: 0; color: #1f2937;\\\"><strong>כלי</strong> (מצב נוכחי 2026)</p>\\n\\nזכור: החזר רק HTML נקי, בלי עטיפה של קוד, בלי סעיף \\\"למי מתאים\\\".\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"פרק {{ $json.episode_number }}: {{ $json.safe_title }}\\nתאריך הקלטה: {{ $json.pub_date }}\\nתאריך היום: מרץ 2026\\n\\nתמליל:\\n{{ $json.safe_transcript }}\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "8c9e1ffd-1266-413a-9834-0220b91aeb1e",
+      "name": "Summarize with Claude Hebrew",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        3552,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// After Open Brain ingestion, retrieve the original episode data\n// which has the transcript, title, description, etc. needed for summarization\n\nconst episode = $('Loop Over Items').item.json;\n\n// Get Open Brain metadata from the ingestion flow\nconst openBrainData = $input.item.json;\n\n// Combine: episode data + any useful metadata from ingestion\nreturn {\n  // Full episode data for summarization\n  ...episode,\n  openbrain_completed: true,\n  document_id: openBrainData.document_id,\n  transcript_length: openBrainData.transcript_length\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3152,
+        240
+      ],
+      "id": "976835cf-ca4d-4133-aa4a-2559d0284702",
+      "name": "Retrieve Episode Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get ALL chunks from Chunk Transcript\nconst items = $input.all();\nconst chunks = items.map(item => item.json);\n\nif (chunks.length === 0) {\n  return [{ json: { success: false, error: 'No chunks to process' } }];\n}\n\n// DEBUG: Log transcript info\nconsole.log('Episode:', chunks[0].episode_id, \n            '| Transcript length:', chunks[0].transcript_length,\n            '| Chunk count:', chunks.length);\n\n// Process in batches of 5 with delays\nconst BATCH_SIZE = 5;\nconst allChunksWithEmbeddings = [];\n\nfor (let i = 0; i < chunks.length; i += BATCH_SIZE) {\n  const batch = chunks.slice(i, i + BATCH_SIZE);\n  const texts = batch.map(chunk => chunk.content);\n  \n  console.log(`Batch ${Math.floor(i/BATCH_SIZE) + 1}: chunks ${i} to ${i + batch.length - 1}`);\n  \n  // Get embeddings for this batch\n  const embeddingResponse = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://openrouter.ai/api/v1/embeddings',\n    headers: {\n      'Authorization': 'Bearer ' + $vars.OPENROUTER_API_KEY,  \n      'Content-Type': 'application/json'\n    },\n    body: {\n      model: 'openai/text-embedding-3-small',\n      input: texts\n    },\n    json: true\n  });\n  \n  const embeddings = embeddingResponse.data || [];\n  \n  // Match embeddings to chunks\n  for (let j = 0; j < batch.length; j++) {\n    const embeddingArray = embeddings[j]?.embedding || [];\n    // Format embedding as a string for pgvector\n    const embeddingString = '[' + embeddingArray.join(',') + ']';\n    \n    allChunksWithEmbeddings.push({\n      document_id: batch[j].document_id,\n      collection_id: batch[j].collection_id,\n      content: batch[j].content,\n      chunk_index: batch[j].chunk_index,\n      embedding: embeddingString,\n      metadata: {}\n    });\n  }\n  \n  // Delay between batches (except for last batch)\n  if (i + BATCH_SIZE < chunks.length) {\n    await new Promise(resolve => setTimeout(resolve, 300));\n  }\n}\n\n// Insert all chunks to Supabase\nlet insertResponse;\ntry {\n  insertResponse = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://YOUR_PROJECT.supabase.co/rest/v1/chunks',\n    headers: {\n      'apikey': $vars.SUPABASE_API_KEY,\n      'Authorization': 'Bearer ' + $vars.SUPABASE_API_KEY,\n      'Content-Type': 'application/json',\n      'Prefer': 'return=minimal'\n    },\n    body: allChunksWithEmbeddings,\n    json: true,\n    returnFullResponse: true\n  });\n} catch (error) {\n  // Log the first chunk to debug\n  console.log('First chunk being inserted:', JSON.stringify({\n    document_id: allChunksWithEmbeddings[0].document_id,\n    collection_id: allChunksWithEmbeddings[0].collection_id,\n    content_length: allChunksWithEmbeddings[0].content?.length,\n    chunk_index: allChunksWithEmbeddings[0].chunk_index,\n    embedding_length: allChunksWithEmbeddings[0].embedding?.length\n  }));\n  \n  // Try to get the actual Supabase error\n  console.log('Error message:', error.message);\n  console.log('Error response:', JSON.stringify(error.response?.data || error.cause || 'no details'));\n  \n  throw error;\n}\nconsole.log('Inserted', allChunksWithEmbeddings.length, 'chunks');\n\nreturn [{\n  json: {\n    success: true,\n    episode_id: chunks[0].episode_id,\n    total_chunks: chunks.length,\n    transcript_length: chunks[0].transcript_length\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2992,
+        560
+      ],
+      "id": "b95b7888-1c7f-401d-a6c6-f28c06da995e",
+      "name": "Embed All Chunks"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Feeds",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "Parse Episodes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Episodes": {
+      "main": [
+        [
+          {
+            "node": "Read Episodes Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Submit to RunPod": {
+      "main": [
+        [
+          {
+            "node": "Attach Job ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Job ID": {
+      "main": [
+        [
+          {
+            "node": "Wait 45s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 45s": {
+      "main": [
+        [
+          {
+            "node": "Poll RunPod Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll RunPod Status": {
+      "main": [
+        [
+          {
+            "node": "If FAILED?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Poll Result": {
+      "main": [
+        [
+          {
+            "node": "Is Completed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Completed?": {
+      "main": [
+        [
+          {
+            "node": "Identify Speakers",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 45s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize with Claude": {
+      "main": [
+        [
+          {
+            "node": "Extract Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If FAILED?": {
+      "main": [
+        [
+          {
+            "node": "Handle Failure",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Poll Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Audio": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Share file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Share file": {
+      "main": [
+        [
+          {
+            "node": "Submit to RunPod",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Feeds": {
+      "main": [
+        [
+          {
+            "node": "Fetch RSS Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Episodes Sheet": {
+      "main": [
+        [
+          {
+            "node": "Check Status & Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Status & Filter": {
+      "main": [
+        [
+          {
+            "node": "Extract toInsert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract toUpdate",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract toProcess",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract toInsert": {
+      "main": [
+        [
+          {
+            "node": "Insert New Episodes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert New Episodes": {
+      "main": [
+        []
+      ]
+    },
+    "Extract toUpdate": {
+      "main": [
+        [
+          {
+            "node": "Update Existing Episodes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Existing Episodes": {
+      "main": [
+        []
+      ]
+    },
+    "Extract toProcess": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Processing Status": {
+      "main": [
+        [
+          {
+            "node": "Download Audio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Set Processing Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Claude": {
+      "main": [
+        [
+          {
+            "node": "Summarize with Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify Speakers": {
+      "main": [
+        [
+          {
+            "node": "Ask Claude for Speakers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask Claude for Speakers": {
+      "main": [
+        [
+          {
+            "node": "Replace Speaker Labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Replace Speaker Labels": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Open Brain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet: Completed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare for Open Brain": {
+      "main": [
+        [
+          {
+            "node": "Prepare Document Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Failure": {
+      "main": [
+        [
+          {
+            "node": "Update Sheet: Failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet: Failed": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Document Data": {
+      "main": [
+        [
+          {
+            "node": "Check Existing Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Existing Document": {
+      "main": [
+        [
+          {
+            "node": "Check If Delete Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Delete Needed": {
+      "main": [
+        [
+          {
+            "node": "Needs Delete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Delete?": {
+      "main": [
+        [
+          {
+            "node": "Delete Existing Document",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Existing Document": {
+      "main": [
+        [
+          {
+            "node": "After Delete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "After Delete": {
+      "main": [
+        [
+          {
+            "node": "Insert Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Delete": {
+      "main": [
+        [
+          {
+            "node": "Insert Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Document": {
+      "main": [
+        [
+          {
+            "node": "Merge Doc Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chunk Transcript": {
+      "main": [
+        [
+          {
+            "node": "Embed All Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Sheet: Completed": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Doc Response": {
+      "main": [
+        [
+          {
+            "node": "Chunk Transcript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retrieve Episode Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare for Claude",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embed All Chunks": {
+      "main": [
+        [
+          {
+            "node": "Retrieve Episode Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "8a4b7471-3d92-4b2c-8d9e-f4aed0b1ffea",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "YOUR_N8N_INSTANCE_ID"
+  },
+  "id": "YOUR_WORKFLOW_ID",
+  "tags": [
+    {
+      "updatedAt": "2026-03-16T15:59:03.975Z",
+      "createdAt": "2026-03-16T15:59:03.975Z",
+      "id": "LsLXx6Wu0oOuvtcT",
+      "name": "hebrew"
+    },
+    {
+      "updatedAt": "2026-03-16T15:59:04.012Z",
+      "createdAt": "2026-03-16T15:59:04.012Z",
+      "id": "bElQzhErHnWbkkaH",
+      "name": "AI"
+    },
+    {
+      "updatedAt": "2026-03-16T15:59:03.939Z",
+      "createdAt": "2026-03-16T15:59:03.939Z",
+      "id": "e3fSVrtCu7bIKGe3",
+      "name": "podcast"
+    }
+  ]
+}
