@@ -505,12 +505,24 @@ async function processGroup(group, collectionId) {
     created_at: c.metadata.start_date,
   }));
 
-  const batch = 50;
+  const batch = 10;
   for (let i = 0; i < chunkRows.length; i += batch) {
-    await sbPost("chunks", chunkRows.slice(i, i + batch));
+    const slice = chunkRows.slice(i, i + batch);
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await sbPost("chunks", slice);
+        break;
+      } catch (err) {
+        retries--;
+        if (retries === 0) throw err;
+        console.log(`\n   ⚠️  Batch ${Math.floor(i / batch) + 1} failed, retrying (${retries} left)...`);
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    }
     process.stdout.write(`  Stored ${Math.min(i + batch, chunkRows.length)}/${chunkRows.length}\r`);
+    if (i + batch < chunkRows.length) await new Promise((r) => setTimeout(r, 200));
   }
-
   console.log(`\n\n   ✅ ${messages.length} messages → ${chunks.length} chunks (~$${estCost})`);
 }
 
